@@ -15,14 +15,17 @@ from passlib.context import CryptContext
 from pydantic import BaseModel
 import json
 import tempfile
+import jinja2
 from pokemon_tcg import PokemonTCGAPI
 from image_processing import CardDetector, VideoProcessor
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from database import get_db, engine
 import models
 from models import User, Card
+from pathlib import Path
+import logging
 
 # Create database tables
 models.Base.metadata.create_all(bind=engine)
@@ -36,11 +39,16 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Setup templates
-templates = Jinja2Templates(directory="templates")
+# Template setup
+templates_dir = Path(__file__).parent / "templates"
+templates = Jinja2Templates(directory=str(templates_dir))
 
-# Mount static files
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# Mount static files if directory exists
+static_dir = Path(__file__).parent / "static"
+if static_dir.exists():
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+else:
+    logger.warning("Static directory not found. Static files will not be served.")
 
 # Initialize APIs and processors
 pokemon_tcg = PokemonTCGAPI()
@@ -342,14 +350,94 @@ async def get_collection(
     cards = db.query(Card).filter(Card.owner_id == current_user.id).all()
     return cards
 
-@app.get("/")
+@app.get("/", response_class=HTMLResponse)
 async def root(request: Request):
     """Root endpoint that serves the landing page"""
+    try:
+        return templates.TemplateResponse(
+            name="index.html",
+            context={
+                "request": request,
+                "current_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "base_url": request.base_url
+            }
+        )
+    except Exception as e:
+        print(f"Template error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/test", response_class=HTMLResponse)
+async def test(request: Request):
+    """Test endpoint to verify template rendering"""
     return templates.TemplateResponse(
-        "index.html",
+        "test.html",
         {
             "request": request,
-            "current_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "base_url": request.base_url
+            "current_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
-    ) 
+    )
+
+@app.get("/test/notion-report")
+async def test_notion_report(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Test endpoint to simulate adding a Blastoise Ex card and create a Notion report"""
+    try:
+        # Search for Blastoise Ex in the Pokemon TCG API
+        card_data = pokemon_tcg.search_card("Blastoise ex", "Scarlet & Violet - 151")
+        
+        if not card_data:
+            raise HTTPException(
+                status_code=404,
+                detail="Card not found in Pokemon TCG database"
+            )
+        
+        # Get market price
+        market_price = pokemon_tcg.get_card_market_price(card_data["id"])
+        
+        # Create card entry
+        card = Card(
+            name=card_data["name"],
+            collection=card_data["set"]["name"],
+            market_price=market_price or 0.0,
+            rarity=card_data["rarity"],
+            image_url=card_data["images"]["large"],
+            owner_id=current_user.id
+        )
+        
+        db.add(card)
+        db.commit()
+        
+        # Create Notion entry
+        notion_page = notion.pages.create(
+            parent={"database_id": os.getenv("NOTION_DATABASE_ID")},
+            properties={
+                "Name": {"title": [{"text": {"content": card.name}}]},
+                "Collection": {"rich_text": [{"text": {"content": card.collection}}]},
+                "Market Price": {"number": card.market_price},
+                "Rarity": {"select": {"name": card.rarity}},
+                "Owner": {"rich_text": [{"text": {"content": current_user.email}}]},
+                "Image": {"url": card.image_url}
+            }
+        )
+        
+        card.notion_page_id = notion_page["id"]
+        db.commit()
+        
+        return {
+            "message": "Card processed successfully",
+            "card_data": {
+                "name": card.name,
+                "collection": card.collection,
+                "market_price": card.market_price,
+                "rarity": card.rarity,
+                "image_url": card.image_url,
+                "notion_page_url": f"https://notion.so/{notion_page['id'].replace('-', '')}"
+            }
+        }
+        
+    except Exception as e:
+        print(f"Error creating Notion report: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e)) 
