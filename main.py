@@ -16,6 +16,7 @@ from pydantic import BaseModel
 import json
 import tempfile
 from pokemon_tcg import PokemonTCGAPI
+from image_processing import CardDetector, VideoProcessor
 
 from database import get_db, engine
 import models
@@ -29,8 +30,10 @@ load_dotenv()
 
 app = FastAPI(title="Pokemon Card Tracker API")
 
-# Initialize Pokemon TCG API
+# Initialize APIs and processors
 pokemon_tcg = PokemonTCGAPI()
+card_detector = CardDetector()
+video_processor = VideoProcessor(card_detector)
 
 # CORS middleware
 app.add_middleware(
@@ -160,17 +163,10 @@ async def process_video(
             content = await file.read()
             buffer.write(content)
         
-        # Process video frames
-        cap = cv2.VideoCapture(video_path)
+        # Process video
+        results = video_processor.process_video(video_path, temp_dir)
         
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if not ret:
-                break
-                
-            # Extract text from frame
-            text = pytesseract.image_to_string(frame)
-            
+        for region, text, timestamp in results:
             # Extract card information from OCR text
             card_info = pokemon_tcg.extract_card_info(text)
             if card_info and card_info["name"]:
@@ -180,25 +176,20 @@ async def process_video(
                     # Get market price
                     market_price = pokemon_tcg.get_card_market_price(card_data["id"])
                     
-                    # Save frame as image
-                    frame_path = os.path.join(temp_dir, f"frame_{len(cards)}.jpg")
-                    cv2.imwrite(frame_path, frame)
-                    
                     # Create card entry
                     card = Card(
                         name=card_data["name"],
                         collection=card_data["set"]["name"],
                         market_price=market_price or 0.0,
                         rarity=card_data["rarity"],
-                        image_url=frame_path,
-                        video_timestamp=str(cap.get(cv2.CAP_PROP_POS_MSEC)),
+                        image_url=os.path.join(temp_dir, f"card_{len(cards)}_{timestamp}.jpg"),
+                        video_timestamp=str(timestamp),
                         video_id=file.filename,
                         owner_id=current_user.id
                     )
                     db.add(card)
                     cards.append(card)
         
-        cap.release()
         db.commit()
     
     return {"message": f"Processed {len(cards)} cards"}
@@ -219,14 +210,34 @@ async def upload_card(
         
         # Process image
         image = cv2.imread(image_path)
-        text = pytesseract.image_to_string(image)
+        if image is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid image file"
+            )
+        
+        # Detect card regions
+        card_regions = card_detector.detect_card_regions(image)
+        if not card_regions:
+            raise HTTPException(
+                status_code=400,
+                detail="No card detected in image"
+            )
+        
+        # Extract text from the first detected card
+        text = card_detector.extract_card_text(image, card_regions[0])
+        if not text:
+            raise HTTPException(
+                status_code=400,
+                detail="Could not extract text from card"
+            )
         
         # Extract card information from OCR text
         card_info = pokemon_tcg.extract_card_info(text)
         if not card_info or not card_info["name"]:
             raise HTTPException(
                 status_code=400,
-                detail="Could not extract card information from image"
+                detail="Could not extract card information from text"
             )
         
         # Search for card in Pokemon TCG API
@@ -240,13 +251,17 @@ async def upload_card(
         # Get market price
         market_price = pokemon_tcg.get_card_market_price(card_data["id"])
         
+        # Save card image
+        output_path = os.path.join(temp_dir, "card.jpg")
+        card_detector.save_card_image(image, card_regions[0], output_path)
+        
         # Create card entry
         card = Card(
             name=card_data["name"],
             collection=card_data["set"]["name"],
             market_price=market_price or 0.0,
             rarity=card_data["rarity"],
-            image_url=file.filename,
+            image_url=output_path,
             owner_id=current_user.id
         )
         
