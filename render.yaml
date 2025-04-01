@@ -18,6 +18,8 @@ services:
         value: 3.9.0
       - key: PYTHONPATH
         value: /app
+      - key: POKEMON_TCG_API_KEY
+        value: ba5ce995-a472-4c30-a537-4e4ae478eb32
     healthCheckPath: /docs
     autoDeploy: true
     disk:
