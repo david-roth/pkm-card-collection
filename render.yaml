@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: pokemon-card-tracker
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: NOTION_TOKEN
+        sync: false
+      - key: NOTION_DATABASE_ID
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true 

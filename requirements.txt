@@ -1,0 +1,12 @@
+fastapi==0.104.1
+uvicorn==0.24.0
+python-multipart==0.0.6
+opencv-python==4.8.1.78
+pytesseract==0.3.10
+notion-client==2.2.1
+python-dotenv==1.0.0
+pydantic==2.5.2
+requests==2.31.0
+python-jose==3.3.0
+passlib==1.7.4
+bcrypt==4.0.1 
