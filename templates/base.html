@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Pokemon Card Tracker{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <nav class="gradient-bg text-white shadow-lg">
+        <div class="container mx-auto px-4 py-3">
+            <div class="flex justify-between items-center">
+                <a href="/" class="text-xl font-bold">Pokemon Card Tracker</a>
+                <div class="space-x-4">
+                    <a href="/docs" class="hover:text-gray-200">API Docs</a>
+                    <a href="https://github.com/david-roth/pkm-card-collection" target="_blank" class="hover:text-gray-200">GitHub</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container mx-auto px-4 py-8">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="bg-gray-800 text-white mt-auto">
+        <div class="container mx-auto px-4 py-6">
+            <div class="text-center">
+                <p>&copy; 2024 Pokemon Card Tracker. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html> 

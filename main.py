@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File
+from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -17,7 +17,9 @@ import json
 import tempfile
 from pokemon_tcg import PokemonTCGAPI
 from image_processing import CardDetector, VideoProcessor
-
+from fastapi.responses import JSONResponse
+from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
 from database import get_db, engine
 import models
 from models import User, Card
@@ -28,7 +30,17 @@ models.Base.metadata.create_all(bind=engine)
 # Load environment variables
 load_dotenv()
 
-app = FastAPI(title="Pokemon Card Tracker API")
+app = FastAPI(
+    title="Pokemon Card Tracker API",
+    description="API for managing Pokemon card collections with OCR capabilities",
+    version="1.0.0"
+)
+
+# Setup templates
+templates = Jinja2Templates(directory="templates")
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Initialize APIs and processors
 pokemon_tcg = PokemonTCGAPI()
@@ -328,4 +340,16 @@ async def get_collection(
     db: Session = Depends(get_db)
 ):
     cards = db.query(Card).filter(Card.owner_id == current_user.id).all()
-    return cards 
+    return cards
+
+@app.get("/")
+async def root(request: Request):
+    """Root endpoint that serves the landing page"""
+    return templates.TemplateResponse(
+        "index.html",
+        {
+            "request": request,
+            "current_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "base_url": request.base_url
+        }
+    ) 
