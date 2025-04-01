@@ -2,23 +2,18 @@ services:
   - type: web
     name: pokemon-card-tracker
     env: python
-    buildCommand: |
-      python -m pip install --upgrade pip
-      pip install -r requirements.txt
-      apt-get update && apt-get install -y tesseract-ocr
+    buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
+      - key: PYTHON_VERSION
+        value: 3.9.0
+      - key: SECRET_KEY
+        sync: false
+      - key: POKEMON_TCG_API_KEY
+        sync: false
       - key: NOTION_TOKEN
         sync: false
       - key: NOTION_DATABASE_ID
-        sync: false
-      - key: SECRET_KEY
-        generateValue: true
-      - key: PYTHON_VERSION
-        value: 3.9.0
-      - key: PYTHONPATH
-        value: /app
-      - key: POKEMON_TCG_API_KEY
         sync: false
     healthCheckPath: /docs
     autoDeploy: true
