@@ -14,6 +14,8 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel
 import json
+import tempfile
+from pokemon_tcg import PokemonTCGAPI
 
 from database import get_db, engine
 import models
@@ -26,6 +28,9 @@ models.Base.metadata.create_all(bind=engine)
 load_dotenv()
 
 app = FastAPI(title="Pokemon Card Tracker API")
+
+# Initialize Pokemon TCG API
+pokemon_tcg = PokemonTCGAPI()
 
 # CORS middleware
 app.add_middleware(
@@ -145,43 +150,56 @@ async def process_video(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # Save video temporarily
-    video_path = f"temp_{file.filename}"
-    with open(video_path, "wb") as buffer:
-        content = await file.read()
-        buffer.write(content)
-    
-    # Process video frames
-    cap = cv2.VideoCapture(video_path)
     cards = []
     
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
+    # Create a temporary directory for processing
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Save video temporarily
+        video_path = os.path.join(temp_dir, file.filename)
+        with open(video_path, "wb") as buffer:
+            content = await file.read()
+            buffer.write(content)
+        
+        # Process video frames
+        cap = cv2.VideoCapture(video_path)
+        
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
+                
+            # Extract text from frame
+            text = pytesseract.image_to_string(frame)
             
-        # Extract text from frame
-        text = pytesseract.image_to_string(frame)
-        # Process text to identify cards
-        # This is a simplified version - you'll need to implement proper card detection
-        if "Pokemon" in text:
-            # Create card entry
-            card = Card(
-                name="Detected Card",  # Implement proper card name detection
-                collection="Detected Collection",  # Implement proper collection detection
-                market_price=0.0,  # Implement price lookup
-                rarity="Unknown",  # Implement rarity detection
-                image_url="",  # Save frame as image
-                video_timestamp=str(cap.get(cv2.CAP_PROP_POS_MSEC)),
-                video_id=file.filename,
-                owner_id=current_user.id
-            )
-            db.add(card)
-            cards.append(card)
-    
-    cap.release()
-    os.remove(video_path)
-    db.commit()
+            # Extract card information from OCR text
+            card_info = pokemon_tcg.extract_card_info(text)
+            if card_info and card_info["name"]:
+                # Search for card in Pokemon TCG API
+                card_data = pokemon_tcg.search_card(card_info["name"], card_info["set"])
+                if card_data:
+                    # Get market price
+                    market_price = pokemon_tcg.get_card_market_price(card_data["id"])
+                    
+                    # Save frame as image
+                    frame_path = os.path.join(temp_dir, f"frame_{len(cards)}.jpg")
+                    cv2.imwrite(frame_path, frame)
+                    
+                    # Create card entry
+                    card = Card(
+                        name=card_data["name"],
+                        collection=card_data["set"]["name"],
+                        market_price=market_price or 0.0,
+                        rarity=card_data["rarity"],
+                        image_url=frame_path,
+                        video_timestamp=str(cap.get(cv2.CAP_PROP_POS_MSEC)),
+                        video_id=file.filename,
+                        owner_id=current_user.id
+                    )
+                    db.add(card)
+                    cards.append(card)
+        
+        cap.release()
+        db.commit()
     
     return {"message": f"Processed {len(cards)} cards"}
 
@@ -191,29 +209,64 @@ async def upload_card(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # Save image temporarily
-    image_path = f"temp_{file.filename}"
-    with open(image_path, "wb") as buffer:
-        content = await file.read()
-        buffer.write(content)
-    
-    # Process image
-    image = cv2.imread(image_path)
-    text = pytesseract.image_to_string(image)
-    
-    # Create card entry
-    card = Card(
-        name="Detected Card",  # Implement proper card name detection
-        collection="Detected Collection",  # Implement proper collection detection
-        market_price=0.0,  # Implement price lookup
-        rarity="Unknown",  # Implement rarity detection
-        image_url=file.filename,
-        owner_id=current_user.id
-    )
-    
-    db.add(card)
-    db.commit()
-    os.remove(image_path)
+    # Create a temporary directory for processing
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Save image temporarily
+        image_path = os.path.join(temp_dir, file.filename)
+        with open(image_path, "wb") as buffer:
+            content = await file.read()
+            buffer.write(content)
+        
+        # Process image
+        image = cv2.imread(image_path)
+        text = pytesseract.image_to_string(image)
+        
+        # Extract card information from OCR text
+        card_info = pokemon_tcg.extract_card_info(text)
+        if not card_info or not card_info["name"]:
+            raise HTTPException(
+                status_code=400,
+                detail="Could not extract card information from image"
+            )
+        
+        # Search for card in Pokemon TCG API
+        card_data = pokemon_tcg.search_card(card_info["name"], card_info["set"])
+        if not card_data:
+            raise HTTPException(
+                status_code=404,
+                detail="Card not found in Pokemon TCG database"
+            )
+        
+        # Get market price
+        market_price = pokemon_tcg.get_card_market_price(card_data["id"])
+        
+        # Create card entry
+        card = Card(
+            name=card_data["name"],
+            collection=card_data["set"]["name"],
+            market_price=market_price or 0.0,
+            rarity=card_data["rarity"],
+            image_url=file.filename,
+            owner_id=current_user.id
+        )
+        
+        db.add(card)
+        db.commit()
+        
+        # Create Notion entry
+        notion_page = notion.pages.create(
+            parent={"database_id": os.getenv("NOTION_DATABASE_ID")},
+            properties={
+                "Name": {"title": [{"text": {"content": card.name}}]},
+                "Collection": {"rich_text": [{"text": {"content": card.collection}}]},
+                "Market Price": {"number": card.market_price},
+                "Rarity": {"select": {"name": card.rarity}},
+                "Owner": {"rich_text": [{"text": {"content": current_user.email}}]}
+            }
+        )
+        
+        card.notion_page_id = notion_page["id"]
+        db.commit()
     
     return {"message": "Card processed successfully"}
 
@@ -223,6 +276,16 @@ async def process_card_prompt(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    # Search for card in Pokemon TCG API
+    tcg_card = pokemon_tcg.search_card(card_data.name, card_data.collection)
+    if tcg_card:
+        # Update card data with TCG information
+        card_data.collection = tcg_card["set"]["name"]
+        card_data.rarity = tcg_card["rarity"]
+        market_price = pokemon_tcg.get_card_market_price(tcg_card["id"])
+        if market_price:
+            card_data.market_price = market_price
+    
     card = Card(**card_data.dict(), owner_id=current_user.id)
     db.add(card)
     db.commit()
