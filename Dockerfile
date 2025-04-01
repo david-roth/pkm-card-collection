@@ -8,6 +8,12 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /app
 
+# Set Python path
+ENV PYTHONPATH=/app
+
+# Upgrade pip
+RUN python -m pip install --upgrade pip
+
 # Copy requirements first to leverage Docker cache
 COPY requirements.txt .
 

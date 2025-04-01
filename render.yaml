@@ -3,6 +3,7 @@ services:
     name: pokemon-card-tracker
     env: python
     buildCommand: |
+      python -m pip install --upgrade pip
       pip install -r requirements.txt
       apt-get update && apt-get install -y tesseract-ocr
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
@@ -15,6 +16,8 @@ services:
         generateValue: true
       - key: PYTHON_VERSION
         value: 3.9.0
+      - key: PYTHONPATH
+        value: /app
     healthCheckPath: /docs
     autoDeploy: true
     disk:
