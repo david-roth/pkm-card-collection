@@ -3,7 +3,7 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
-from typing import List
+from typing import List, Union, Optional
 import cv2
 import pytesseract
 import os
@@ -53,7 +53,7 @@ class Token(BaseModel):
     token_type: str
 
 class TokenData(BaseModel):
-    email: str | None = None
+    email: Optional[str] = None
 
 class UserCreate(BaseModel):
     email: str
@@ -65,8 +65,8 @@ class CardCreate(BaseModel):
     market_price: float
     rarity: str
     image_url: str
-    video_timestamp: str | None = None
-    video_id: str | None = None
+    video_timestamp: Optional[str] = None
+    video_id: Optional[str] = None
 
 # Helper functions
 def verify_password(plain_password, hashed_password):
@@ -75,7 +75,7 @@ def verify_password(plain_password, hashed_password):
 def get_password_hash(password):
     return pwd_context.hash(password)
 
-def create_access_token(data: dict, expires_delta: timedelta | None = None):
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
