@@ -6,9 +6,13 @@ from fastapi.responses import JSONResponse, HTMLResponse
 import logging
 from pathlib import Path
 from datetime import datetime
+import os
+from dotenv import load_dotenv
 
 from card_processing import router as card_router
 from config import get_settings
+from auth import router as auth_router
+from notion_integration import verify_database
 
 # Configure logging
 logging.basicConfig(
@@ -16,6 +20,9 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Load environment variables
+load_dotenv()
 
 # Initialize FastAPI app
 app = FastAPI(title="Pokemon Card Tracker")
@@ -32,12 +39,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount static files and templates
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# Mount static files if directory exists
+static_dir = Path("static")
+if static_dir.exists():
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+else:
+    logger.warning("Static directory not found. Static files will not be served.")
+
+# Templates
 templates = Jinja2Templates(directory="templates")
 
 # Include routers
-app.include_router(card_router)
+app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
+app.include_router(card_router, prefix="/api/cards", tags=["cards"])
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
@@ -50,6 +64,25 @@ async def read_root(request: Request):
             "base_url": str(request.base_url)
         }
     )
+
+@app.on_event("startup")
+async def startup_event():
+    try:
+        # Verify Notion database connection
+        database_id = os.getenv("NOTION_DATABASE_ID")
+        if not database_id:
+            logger.error("NOTION_DATABASE_ID environment variable is not set")
+            return
+            
+        logger.info(f"Verifying Notion database connection... Database ID: {database_id}")
+        verify_database(database_id)
+        logger.info("Notion database connection verified successfully")
+    except Exception as e:
+        logger.error(f"Error verifying database: {str(e)}")
+        logger.error(f"Database ID: {database_id}")
+        logger.error(f"Exception type: {type(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request, exc):
