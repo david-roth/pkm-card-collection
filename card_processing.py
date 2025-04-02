@@ -1,8 +1,6 @@
-from fastapi import APIRouter, HTTPException, status, UploadFile, File, Form
-from typing import List, Dict, Any, Optional
-import cv2
-import numpy as np
-from schemas import CardBase, CardCreate, CardResponse
+from fastapi import APIRouter, UploadFile, File
+from typing import Dict, Any, Optional
+from schemas import CardBase, CardResponse
 from notion_integration import NotionIntegration
 from pokemon_tcg_api import PokemonTCGAPI
 from config import get_settings
@@ -11,7 +9,7 @@ import logging
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/api/cards", tags=["cards"])
+router = APIRouter(tags=["cards"])
 notion = NotionIntegration()
 pokemon_tcg = PokemonTCGAPI()
 
@@ -98,43 +96,6 @@ async def upload_card(file: UploadFile = File(...)):
             success=False,
             message="Error processing card image",
             error=str(e)
-        )
-
-@router.post("/prompt", response_model=CardResponse)
-async def create_card(card: CardCreate):
-    """Create a card entry manually."""
-    # Search for card in Pokemon TCG API
-    cards = pokemon_tcg.search_card(card.name)
-    if not cards:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Card not found in Pokemon TCG API"
-        )
-    
-    # Use the first matching card and transform it
-    card_data = transform_card_data_for_notion(cards[0])
-    
-    try:
-        # Create Notion report
-        notion_page_id = notion.create_card_report(card_data)
-        if not notion_page_id:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to create Notion report"
-            )
-        
-        return CardResponse(
-            success=True,
-            message="Card created successfully",
-            card=card_data
-        )
-        
-    except HTTPException as he:
-        raise he
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create card: {str(e)}"
         )
 
 @router.post("/report", response_model=CardResponse)

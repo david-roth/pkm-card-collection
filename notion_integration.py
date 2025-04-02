@@ -6,6 +6,11 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
+def verify_database(database_id: str) -> None:
+    """Verify that the Notion database exists and has the correct structure."""
+    integration = NotionIntegration()
+    integration.verify_database()
+
 class NotionIntegration:
     def __init__(self):
         settings = get_settings()

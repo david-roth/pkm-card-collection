@@ -14,27 +14,8 @@ A FastAPI-based application for tracking Pokemon card collections, processing ca
 ## Prerequisites
 
 - Python 3.9+
-- Tesseract OCR installed on your system
 - Pokemon TCG API key
 - Notion API token and database ID
-
-### Installing Tesseract OCR
-
-#### Windows
-1. Download the installer from: https://github.com/UB-Mannheim/tesseract/wiki
-2. Run the installer
-3. Add Tesseract to your system PATH
-
-#### Linux
-```bash
-sudo apt-get update
-sudo apt-get install tesseract-ocr
-```
-
-#### macOS
-```bash
-brew install tesseract
-```
 
 ## Setup
 
@@ -230,6 +211,48 @@ flake8
 ## Deployment
 
 The application is configured for deployment on Render.com. See `render.yaml` for deployment configuration.
+
+### Docker Deployment
+
+To build and run the application using Docker:
+
+```bash
+# Build the image
+docker build -t pokemon-card-tracker .
+
+# Run the container
+docker run -p 8000:8000 \
+  -e NOTION_TOKEN=your-notion-token \
+  -e NOTION_DATABASE_ID=your-notion-database-id \
+  -e POKEMON_TCG_API_KEY=your-pokemon-tcg-api-key \
+  -e CORS_ORIGINS=["*"] \
+  pokemon-card-tracker
+```
+
+#### Environment Variables
+
+The following environment variables are required when running the container:
+
+- `NOTION_TOKEN`: Your Notion API token
+- `NOTION_DATABASE_ID`: The ID of your Notion database
+- `POKEMON_TCG_API_KEY`: Your Pokemon Trading Card Game API key
+- `CORS_ORIGINS`: List of allowed CORS origins (default: ["*"])
+
+You can provide these variables either through the `-e` flag when running the container or by using a `.env` file:
+
+```env
+NOTION_TOKEN=your-notion-token
+NOTION_DATABASE_ID=your-notion-database-id
+POKEMON_TCG_API_KEY=your-pokemon-tcg-api-key
+CORS_ORIGINS=["*"]
+```
+
+Then run the container with:
+```bash
+docker run -p 8000:8000 --env-file .env pokemon-card-tracker
+```
+
+The container includes a healthcheck that monitors the application's status every 30 seconds.
 
 ## Contributing
 

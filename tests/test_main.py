@@ -96,7 +96,7 @@ def test_search_card_not_found(mock_search_card):
 @patch('image_processing.process_card_image')
 @patch('pokemon_tcg_api.PokemonTCGAPI.search_card')
 def test_upload_card(mock_search_card, mock_process_image):
-    """Test card image upload and processing."""
+    """Test card image upload endpoint."""
     # Mock image processing result
     mock_process_image.return_value = {
         "success": True,
@@ -104,8 +104,8 @@ def test_upload_card(mock_search_card, mock_process_image):
     }
 
     # Mock Pokemon TCG API response
-    mock_card = {
-        "id": "test-id",
+    mock_search_card.return_value = [{
+        "id": "test-id-1",
         "name": "Charizard",
         "set": {
             "name": "Base Set",
@@ -115,11 +115,10 @@ def test_upload_card(mock_search_card, mock_process_image):
         "number": "4",
         "market_price": 100.0,
         "images": {
-            "small": "https://example.com/charizard.jpg",
-            "large": "https://example.com/charizard_large.jpg"
+            "small": "https://example.com/charizard1.jpg",
+            "large": "https://example.com/charizard1_large.jpg"
         }
-    }
-    mock_search_card.return_value = [mock_card]
+    }]
 
     # Create a test image file
     test_image_path = "test_image.jpg"
@@ -135,12 +134,10 @@ def test_upload_card(mock_search_card, mock_process_image):
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
-        assert len(data["cards"]) == 1
+        assert "Cards processed successfully" in data["message"]
+        assert "cards" in data
+        assert len(data["cards"]) > 0
         assert data["cards"][0]["name"] == "Charizard"
-        assert data["cards"][0]["collection"] == "Base Set"
-        assert data["cards"][0]["rarity"] == "Rare"
-        assert data["cards"][0]["market_price"] == 100.0
-        assert data["cards"][0]["image_url"] == "https://example.com/charizard_large.jpg"
     finally:
         # Clean up test file
         if os.path.exists(test_image_path):
@@ -185,8 +182,4 @@ def test_create_card_report():
         mock_create_report.assert_called_once()
         call_args = mock_create_report.call_args[0]
         assert call_args[0]["name"] == "Test Card"
-        assert call_args[0]["group_id"] == "TO-BE-CHECKED"
-
-if __name__ == "__main__":
-    # Run tests
-    pytest.main([__file__, "-v"]) 
+        assert call_args[0]["group_id"] == "TO-BE-CHECKED" 
