@@ -139,6 +139,20 @@ GET /api/collection
 Authorization: Bearer your-jwt-token
 ```
 
+### Report Cards to Notion
+
+To report cards to Notion (useful when multiple matches are found):
+
+```bash
+curl -X POST "http://localhost:8000/api/cards/report?query=Charizard&set_id=sv3pt5&group_id=TO-BE-CHECKED"
+```
+
+This will:
+1. Search for cards matching the query
+2. Create entries in Notion for all matching cards
+3. Group them together with the specified group ID
+4. Mark them as repeated if they already exist in the database
+
 ## Example Usage
 
 ### Using cURL

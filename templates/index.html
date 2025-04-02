@@ -4,7 +4,7 @@
 <div class="max-w-4xl mx-auto">
     <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
         <h1 class="text-3xl font-bold text-gray-800 mb-4">Welcome to Pokemon Card Tracker</h1>
-        <p class="text-gray-600 mb-6">A powerful API for managing your Pokemon card collection with OCR capabilities and Notion integration.</p>
+        <p class="text-gray-600 mb-6">A powerful tool for tracking your Pokemon card collection with Notion integration and market price tracking.</p>
         
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div class="bg-blue-50 p-4 rounded-lg">
@@ -27,27 +27,29 @@
     <div class="bg-white rounded-lg shadow-lg p-6">
         <h2 class="text-2xl font-bold text-gray-800 mb-4">Available Endpoints</h2>
         <div class="space-y-4">
-            <div class="border-l-4 border-blue-500 pl-4">
-                <h3 class="text-lg font-semibold text-gray-800">Authentication</h3>
-                <ul class="list-disc list-inside text-gray-600 mt-2">
-                    <li>POST /api/auth/register - Register a new user</li>
-                    <li>POST /api/auth/login - Login with email and password</li>
-                </ul>
-            </div>
-            
             <div class="border-l-4 border-green-500 pl-4">
                 <h3 class="text-lg font-semibold text-gray-800">Card Management</h3>
                 <ul class="list-disc list-inside text-gray-600 mt-2">
-                    <li>POST /api/cards/upload - Upload card images</li>
-                    <li>GET /api/cards/collection - Get user's collection</li>
-                    <li>POST /api/cards/manual - Add card manually</li>
+                    <li>POST /api/cards/search - Search for cards by name and set</li>
+                    <li>POST /api/cards/upload - Upload card images for processing</li>
+                </ul>
+            </div>
+            
+            <div class="border-l-4 border-blue-500 pl-4">
+                <h3 class="text-lg font-semibold text-gray-800">Features</h3>
+                <ul class="list-disc list-inside text-gray-600 mt-2">
+                    <li>Pokemon TCG API Integration</li>
+                    <li>Notion Database Integration</li>
+                    <li>Market Price Tracking</li>
+                    <li>Card Image Processing</li>
                 </ul>
             </div>
             
             <div class="border-l-4 border-purple-500 pl-4">
-                <h3 class="text-lg font-semibold text-gray-800">Video Processing</h3>
+                <h3 class="text-lg font-semibold text-gray-800">Documentation</h3>
                 <ul class="list-disc list-inside text-gray-600 mt-2">
-                    <li>POST /api/videos/process - Process video for card detection</li>
+                    <li><a href="/docs" class="text-purple-600 hover:text-purple-800">Interactive API Documentation</a></li>
+                    <li><a href="https://github.com/david-roth/pkm-card-collection" target="_blank" class="text-purple-600 hover:text-purple-800">GitHub Repository</a></li>
                 </ul>
             </div>
         </div>
