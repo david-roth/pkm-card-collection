@@ -37,37 +37,30 @@ class PokemonTCGAPI:
         transformed_name = self.transform_card_name(name)
         transformed_set = self.transform_set_name(set_name) if set_name else None
         
-        # Try different variations of the query
-        queries = [
-            f'name:"{transformed_name}"',  # Exact match
-        ]
+        # Build query parameters
+        params = {"q": f'name:"{transformed_name}"'}
         
         if transformed_set:
-            # Try different variations of the set name
-            set_queries = [
-                f' set.name:"{transformed_set}"',
-                f' set.name:"{transformed_set.replace("&", "&")}"',
-                f' set.name:"{transformed_set.replace("&", "and")}"',
-            ]
-            queries = [q + sq for q in queries for sq in set_queries]
+            # Add set name as a separate query parameter
+            params["q"] = f'name:"{transformed_name}" set.name:"{transformed_set}"'
         
-        for query in queries:
-            print(f"Trying query: {query}")  # Debug print
-            response = requests.get(
-                f"{self.base_url}/cards",
-                headers=self.headers,
-                params={"q": query}
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                if data.get("data"):
-                    print(f"Found card with query: {query}")  # Debug print
-                    return data["data"][0]
-                else:
-                    print(f"No results found for query: {query}")  # Debug print
+        print(f"Searching with params: {params}")  # Debug print
         
-        print(f"No card found with any query variation")  # Debug print
+        response = requests.get(
+            f"{self.base_url}/cards",
+            headers=self.headers,
+            params=params
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("data"):
+                print(f"Found card with query: {params['q']}")  # Debug print
+                return data["data"][0]
+            else:
+                print(f"No results found for query: {params['q']}")  # Debug print
+        
+        print(f"No card found with query: {params['q']}")  # Debug print
         return None
 
     def get_card_by_id(self, card_id: str) -> Optional[Dict[str, Any]]:
