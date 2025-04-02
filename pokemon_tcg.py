@@ -11,26 +11,43 @@ class PokemonTCGAPI:
         self.base_url = "https://api.pokemontcg.io/v2"
         self.headers = {"X-Api-Key": self.api_key} if self.api_key else {}
 
+    def transform_card_name(self, name: str) -> str:
+        """Transform card name according to Pokemon TCG API conventions."""
+        name = name.strip().lower()
+        # Handle EX cards
+        if name.endswith(" ex"):
+            return name.replace(" ex", "-ex")
+        return name
+
+    def transform_set_name(self, set_name: str) -> str:
+        """Transform set name according to Pokemon TCG API conventions."""
+        set_name = set_name.strip()
+        # Handle Scarlet & Violet sets
+        if "scarlet & violet" in set_name.lower():
+            # Extract expansion name if present
+            parts = set_name.split("-")
+            if len(parts) > 1:
+                return parts[1].strip()
+            return "Scarlet & Violet"
+        return set_name
+
     def search_card(self, name: str, set_name: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Search for a card by name and optionally set name."""
-        # Clean up the name and set name
-        name = name.strip().lower()
-        if set_name:
-            set_name = set_name.strip()
+        # Transform the name and set name
+        transformed_name = self.transform_card_name(name)
+        transformed_set = self.transform_set_name(set_name) if set_name else None
         
         # Try different variations of the query
         queries = [
-            f'name:"{name}"',  # Exact match
-            f'name:"{name.replace(" ex", " ex")}"',  # Try with space before ex
-            f'name:"{name.replace(" ex", "ex")}"',   # Try without space before ex
+            f'name:"{transformed_name}"',  # Exact match
         ]
         
-        if set_name:
+        if transformed_set:
             # Try different variations of the set name
             set_queries = [
-                f' set.name:"{set_name}"',
-                f' set.name:"{set_name.replace("&", "&")}"',
-                f' set.name:"{set_name.replace("&", "and")}"',
+                f' set.name:"{transformed_set}"',
+                f' set.name:"{transformed_set.replace("&", "&")}"',
+                f' set.name:"{transformed_set.replace("&", "and")}"',
             ]
             queries = [q + sq for q in queries for sq in set_queries]
         
@@ -66,10 +83,11 @@ class PokemonTCGAPI:
 
     def get_set_by_name(self, set_name: str) -> Optional[Dict[str, Any]]:
         """Get set information by name."""
+        transformed_set = self.transform_set_name(set_name)
         response = requests.get(
             f"{self.base_url}/sets",
             headers=self.headers,
-            params={"q": f'name:"{set_name}"'}
+            params={"q": f'name:"{transformed_set}"'}
         )
         
         if response.status_code == 200:
@@ -79,19 +97,15 @@ class PokemonTCGAPI:
         return None
 
     def get_card_market_price(self, card_id: str) -> Optional[float]:
-        """Get the market price for a card."""
+        """Get the market price for a card using cardmarket data."""
         card_data = self.get_card_by_id(card_id)
         if card_data and "data" in card_data:
-            tcgplayer = card_data["data"].get("tcgplayer", {})
-            if "prices" in tcgplayer:
-                prices = tcgplayer["prices"]
-                # Try to get the market price in this order: holofoil > normal > reverse holofoil
-                if "holofoil" in prices and prices["holofoil"].get("market"):
-                    return prices["holofoil"]["market"]
-                elif "normal" in prices and prices["normal"].get("market"):
-                    return prices["normal"]["market"]
-                elif "reverseHolofoil" in prices and prices["reverseHolofoil"].get("market"):
-                    return prices["reverseHolofoil"]["market"]
+            cardmarket = card_data["data"].get("cardmarket", {})
+            if "prices" in cardmarket:
+                prices = cardmarket["prices"]
+                # Use averageSellPrice from cardmarket
+                if "averageSellPrice" in prices:
+                    return prices["averageSellPrice"]
         return None
 
     def extract_card_info(self, text: str) -> Dict[str, str]:
